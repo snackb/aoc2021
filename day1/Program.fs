@@ -1,8 +1,5 @@
-﻿open System.IO;
+﻿open System.IO
 open System
-
-// For more information see https://aka.ms/fsharp-console-apps
-printfn "Hello from F#"
 
 let lines = File.ReadAllLines("input")
 let depths = 
@@ -12,16 +9,20 @@ let folder (count, prev) curr =
     if curr > prev then (count+1, curr)
     else (count, curr)
 
-let count, _ = 
+let count = 
     depths
-    |> Seq.fold folder  (0, Int32.MaxValue)
+    |> Seq.windowed 2
+    |> Seq.filter (fun x -> x[0] < x[1])
+    |> Seq.length
 
-printfn "%d" count
+printfn "Part one: %d" count
 
-let windowsCount, _ = 
+let windowsCount = 
     depths
     |> Seq.windowed 3
     |> Seq.map Seq.sum
-    |> Seq.fold folder (0, Int32.MaxValue)
+    |> Seq.windowed 2
+    |> Seq.filter (fun x -> x[0] < x[1])
+    |> Seq.length
 
-printfn "%d" windowsCount
+printfn "Part two: %d" windowsCount
