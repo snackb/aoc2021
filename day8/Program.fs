@@ -1,23 +1,16 @@
 ﻿open System.IO
 
-type CandidatesMap = Map<char, Set<char>>
-
-
-let fullCandidatesMap:CandidatesMap = 
-    seq {'a' .. 'g' }
-    |> Seq.map (fun x -> (x, seq {'a'..'g'} |> Set.ofSeq))
-    |> Map.ofSeq
-
-let lines = File.ReadLines("testinput")
+let lines = File.ReadLines("input")
 
 let rightsegments = 
     lines 
     |> Seq.map (fun x -> (x.Split "|").[1])
     |> Seq.map (fun x -> x.Split " ")
-    |> Seq.collect id
+    |> Seq.map (Array.filter (fun str -> str.Length > 1))
 
 let counts = 
     rightsegments
+    |> Seq.collect id
     |> Seq.filter (fun x -> 
         match x.Length with
         | 2 | 3 | 4 | 7 -> true
@@ -30,6 +23,7 @@ let leftsegments =
     lines 
     |> Seq.map (fun x -> (x.Split "|").[0])
     |> Seq.map (fun x -> x.Split " ")
+    |> Seq.map (Array.filter (fun str -> str.Length > 1))
 
 
 let segmap = Map.ofArray [|
@@ -45,6 +39,13 @@ let segmap = Map.ofArray [|
     ("abcdfg", "9");
     |]
 
+type CandidatesMap = Map<char, Set<char>>
+
+let fullCandidatesMap:CandidatesMap = 
+    seq {'a' .. 'g' }
+    |> Seq.map (fun x -> (x, seq {'a'..'g'} |> Set.ofSeq))
+    |> Map.ofSeq
+
 let choose (target:string) (candidates:CandidatesMap) (segment:string):CandidatesMap =
     let segmentSet = segment |> Set.ofSeq
     candidates
@@ -52,7 +53,8 @@ let choose (target:string) (candidates:CandidatesMap) (segment:string):Candidate
         if target.Contains k then 
             (Set.intersect v segmentSet)
         else 
-            v)
+            v
+    ) 
 
 let rec decodeMapping (segments: Set<string>) (candidates:CandidatesMap) (choices:Map<string, string>) (input:string list):Option<Map<string, string>>= 
     match input with
@@ -70,23 +72,22 @@ let rec decodeMapping (segments: Set<string>) (candidates:CandidatesMap) (choice
         |> Option.flatten
     )
 
-let sortStrings strings = strings |> Array.map (Array.ofSeq >> Array.sort >> System.String) |>  List.ofSeq
+let sortStrings strings = strings |> Array.map (Array.ofSeq >> Array.sort >> System.String) 
 
-let testLine = "acedgfb cdfbe gcdfa fbcad dab cefabd cdfgeb eafb cagedb ab".Split(" ") |> sortStrings
-let test = 
-    testLine
-    |> decodeMapping (segmap.Keys |> Set.ofSeq) fullCandidatesMap Map.empty
-    |> Option.get
+let defaultDecode = List.ofArray >> decodeMapping (segmap.Keys |> Set.ofSeq) fullCandidatesMap Map.empty >> Option.get
 
-printfn "%A" (Map.toList test)
+let left = leftsegments |> Seq.map sortStrings 
+let right = rightsegments |> Seq.map sortStrings
 
-let testNumerals = 
-    "cdfeb fcadb cdfeb cdbaf".Split(" ") |> sortStrings
-    |> List.map (fun scrambledDigit -> Map.find scrambledDigit test)
-    |> List.map (fun unscrambledDigit -> Map.find unscrambledDigit segmap)
+let result = 
+    Seq.zip left right
+    |> Seq.map (fun (left, right) -> (defaultDecode left, right))
+    |> Seq.map (fun (left, right) -> 
+        Array.map (fun scrambled -> Map.find scrambled left) right
+    )
+    |> Seq.map (Array.map (fun unscrambled -> Map.find unscrambled segmap))
+    |> Seq.map (String.concat "")
+    |> Seq.map int
+    |> Seq.sum
 
-printfn "%A" testNumerals
-/// 
-/// uniques -> segmap
-/// unique -> segment implies all char in unique -> char in segment
-/// 
+printfn "%A" result
