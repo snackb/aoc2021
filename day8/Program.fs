@@ -2,14 +2,20 @@
 
 let lines = File.ReadLines("input")
 
-let rightsegments = 
+
+
+let sortStrings strings = strings |> Array.map (Array.ofSeq >> Array.sort >> System.String) 
+
+let inputSegments = 
     lines 
-    |> Seq.map (fun x -> (x.Split "|").[1])
-    |> Seq.map (fun x -> x.Split " ")
-    |> Seq.map (Array.filter (fun str -> str.Length > 1))
+    |> Seq.map (fun x -> (x.Split "|"))
+    |> Seq.map (Array.map (fun x -> x.Split " "))
+    |> Seq.map (Array.map (Array.filter (fun str -> str.Length > 1)))
+    |> Seq.map (Array.map sortStrings)
 
 let counts = 
-    rightsegments
+    inputSegments
+    |> Seq.map (fun x -> x.[1])
     |> Seq.collect id
     |> Seq.filter (fun x -> 
         match x.Length with
@@ -17,14 +23,7 @@ let counts =
         | _ -> false)
     |> Seq.length
 
-printfn "%A" counts
-
-let leftsegments = 
-    lines 
-    |> Seq.map (fun x -> (x.Split "|").[0])
-    |> Seq.map (fun x -> x.Split " ")
-    |> Seq.map (Array.filter (fun str -> str.Length > 1))
-
+printfn "%A" counts // Part one
 
 let segmap = Map.ofArray [|
     ("abcefg", "0");
@@ -37,7 +36,7 @@ let segmap = Map.ofArray [|
     ("acf", "7");
     ("abcdefg", "8");
     ("abcdfg", "9");
-    |]
+ |]
 
 type CandidatesMap = Map<char, Set<char>>
 
@@ -72,15 +71,11 @@ let rec decodeMapping (segments: Set<string>) (candidates:CandidatesMap) (choice
         |> Option.flatten
     )
 
-let sortStrings strings = strings |> Array.map (Array.ofSeq >> Array.sort >> System.String) 
-
 let defaultDecode = List.ofArray >> decodeMapping (segmap.Keys |> Set.ofSeq) fullCandidatesMap Map.empty >> Option.get
 
-let left = leftsegments |> Seq.map sortStrings 
-let right = rightsegments |> Seq.map sortStrings
-
 let result = 
-    Seq.zip left right
+    inputSegments
+    |> Seq.map (fun x -> (x.[0], x.[1]))
     |> Seq.map (fun (left, right) -> (defaultDecode left, right))
     |> Seq.map (fun (left, right) -> 
         Array.map (fun scrambled -> Map.find scrambled left) right
