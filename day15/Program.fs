@@ -8,7 +8,7 @@ type Prev = Map<Coord, Coord>
 type Unvisited = Set<Coord>
 type Visited = Set<Coord>
 
-let lines = File.ReadLines("input")
+let lines = File.ReadLines("testinput")
 
 let grid: Graph = 
     lines
@@ -48,15 +48,16 @@ let getMinPath (grid: Graph) (start: Coord) (dest: Coord): List<Coord> =
         let cur = (unvi |> Seq.minBy (fun coord -> Map.find coord dist))
         let nvisi = Set.add cur visited
         let neighbours = getNeighbours grid cur
-        let nunvi = Set.remove cur unvi |> Set.union (Set.difference neighbours nvisi)
+        let unvisitedNeighbours = Set.difference neighbours nvisi
+        let nunvi = Set.remove cur unvi |> Set.union unvisitedNeighbours
         let nprev, ndist =
-            neighbours |> Set.intersect nunvi
+            unvisitedNeighbours 
             |> Seq.fold (processNode grid cur) (prev, dist)
         if (Map.tryFind dest nprev).IsSome then
             nprev, ndist
         else
             pathRec nprev ndist nunvi nvisi
-    let dist: Dist = grid|> Map.map (fun _ _ -> 9999)|> Map.add start 0
+    let dist: Dist = grid|> Map.map (fun _ _ -> 999999)|> Map.add start 0
     let prev: Prev = Map.empty
     let unvi: Unvisited = Set.empty |> Set.add start
     let endprev, enddist = pathRec prev dist unvi Set.empty
