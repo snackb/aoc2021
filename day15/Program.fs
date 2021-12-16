@@ -5,18 +5,17 @@ type Coord = int*int
 type Graph = Map<Coord, int>
 type Dist = Map<Coord, int>
 type Prev = Map<Coord, Coord>
-type Unvisited = Set<Coord>
-type Visited = Set<Coord>
+type Unvisited = Heap<int * Coord>
 
-let lines = File.ReadLines("testinput")
+let lines = File.ReadLines("input")
 
 let grid: Graph = 
     lines
     |> Seq.map (Seq.map (fun chr -> int(chr.ToString())))
     |> Seq.indexed 
-    |> Seq.map (fun (x, values) -> 
+    |> Seq.map (fun (y, values) -> 
         Seq.indexed values 
-        |> Seq.map (fun (y, value) -> ((x,y), value)) )
+        |> Seq.map (fun (x, value) -> ((x,y), value)) )
     |> Seq.collect id
     |> Map.ofSeq
 
@@ -26,7 +25,7 @@ let getNeighbours (grid: Graph) ((thisx, thisy):Coord): Set<Coord> =
     |> Seq.filter (fun coord -> Map.containsKey coord grid)
     |> Set.ofSeq
 
-let processNode (grid: Graph) (cur: Coord) (prev: Prev, dist: Dist) (node: Coord): (Prev * Dist) =
+let processNode (grid: Graph) (cur: Coord) (prev: Prev, dist: Dist, unvi: Unvisited) (node: Coord): (Prev * Dist * Unvisited) =
     let thisDist = Map.find node dist
     let curDist = Map.find cur dist
     let thisCost = Map.find node grid
@@ -34,9 +33,10 @@ let processNode (grid: Graph) (cur: Coord) (prev: Prev, dist: Dist) (node: Coord
     if newDist < thisDist then
         (
             Map.add node cur prev,
-            Map.add node newDist dist
+            Map.add node newDist dist,
+            Heap.insert (newDist, node) unvi
         )
-    else (prev, dist)
+    else (prev, dist, unvi)
 
 let rec getPathBetween (path: Coord list) (start: Coord) (prev: Prev): Coord list =
     let prevNode = Map.find path.Head prev
@@ -44,23 +44,23 @@ let rec getPathBetween (path: Coord list) (start: Coord) (prev: Prev): Coord lis
     else getPathBetween (prevNode :: path) start prev
 
 let getMinPath (grid: Graph) (start: Coord) (dest: Coord): List<Coord> =
-    let rec pathRec (prev: Prev) (dist: Dist) (unvi: Unvisited) (visited: Unvisited): Prev * Dist =
-        let cur = (unvi |> Seq.minBy (fun coord -> Map.find coord dist))
-        let nvisi = Set.add cur visited
-        let neighbours = getNeighbours grid cur
-        let unvisitedNeighbours = Set.difference neighbours nvisi
-        let nunvi = Set.remove cur unvi |> Set.union unvisitedNeighbours
-        let nprev, ndist =
-            unvisitedNeighbours 
-            |> Seq.fold (processNode grid cur) (prev, dist)
-        if (Map.tryFind dest nprev).IsSome then
-            nprev, ndist
+    let rec pathRec (prev: Prev) (dist: Dist) (unvi: Unvisited): Prev * Dist =
+        let (cost, cur), iunvi = unvi |> Heap.uncons
+        if cost > (Map.find cur dist) then 
+            pathRec prev dist iunvi 
         else
-            pathRec nprev ndist nunvi nvisi
+            let neighbours = getNeighbours grid cur
+            let nprev, ndist, nunvi =
+                neighbours 
+                |> Seq.fold (processNode grid cur) (prev, dist, iunvi)
+            if (Map.tryFind dest nprev).IsSome then
+                nprev, ndist
+            else
+                pathRec nprev ndist nunvi 
     let dist: Dist = grid|> Map.map (fun _ _ -> 999999)|> Map.add start 0
     let prev: Prev = Map.empty
-    let unvi: Unvisited = Set.empty |> Set.add start
-    let endprev, enddist = pathRec prev dist unvi Set.empty
+    let unvi: Unvisited = Heap.empty false |> Heap.insert (0, (0, 0))
+    let endprev, enddist = pathRec prev dist unvi
     getPathBetween [dest] start endprev
 
 let start = (0, 0)
