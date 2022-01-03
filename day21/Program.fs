@@ -1,82 +1,60 @@
 ﻿open System.IO
 open System
+open System.Collections.Generic
 
-type Coord = int * int
-type Image = Set<Coord> * bool
+type Player = int * int // score * pos
 
-let split (delim: String) (s: String) = s.Split(delim)
+//let split (delim: String) (s: String) = s.Split(delim)
 
-let txt = File.ReadAllText("input")
+//let txt = File.ReadAllText("input")
 
-let splitted= split "\n\n" txt
+let detd100 = 
+    Seq.initInfinite (fun i -> (i % 100) + 1)
 
-let algo = Seq.toArray splitted[0] 
-let image: Image =  
-    splitted[1]
-    |> split "\n"
-    |> Seq.indexed
-    |> Seq.map (fun (x, line) -> 
-        Seq.indexed line
-        |> Seq.map (fun (y, chr) -> 
-            match chr with
-            | '#' -> Some(x, y)
-            | '.' -> None
-            | _ -> raise (InvalidDataException())
-        )
-    )
-    |> Seq.collect id |> Seq.filter Option.isSome 
-    |> Seq.map Option.get
-    |> Seq.fold (fun img coord -> Set.add coord img) Set.empty
-    |> (fun x -> (x, false))
+let takeTurn (die: int seq) ((score, pos): Player): Player * int seq =
+    let roll = Seq.take 3 die |> Seq.sum
+    let newpos = (roll + pos) % 10
+    let newScore = if newpos = 0 then 10 else newpos
+    ((newScore + score, newpos), Seq.skip 3 die)
 
-let addCoords ((x1, y1): Coord) ((x2, y2): Coord) =
-    (x1+x2, y1+y2)
+let isWinner (score, _) = score >= 1000
 
-let toBinary: bool seq -> int = 
-    Seq.map (function | true -> 1 | false -> 0)
-    >> Seq.rev
-    >> Seq.indexed
-    >> Seq.fold (fun acc (i, digit) -> acc + (int((float(2)**i)) * digit)) 0
+let hasWinner: Player seq -> bool =
+    Seq.exists isWinner
 
-let getIndex inverted (image: Set<Coord>) (coord: Coord) =
-    let adjCoords = 
-        Seq.allPairs [-1; 0; 1] [-1; 0; 1]
-        |> Seq.map (addCoords coord)
-        |> Seq.map (fun coord -> Set.contains coord image)
-        |> Seq.map (if inverted then not else id)
-    toBinary adjCoords
+let rec playTurns (players: Player list) (die: int seq) (rolled: int): Player list * int = 
+    let newplayers, newdie = 
+        players |> List.mapFold takeTurn die
+    if hasWinner newplayers then newplayers, rolled + (3 * (1 + List.findIndex isWinner newplayers))
+    else playTurns newplayers newdie ((3 * (List.length newplayers)) + rolled)
+
+let result = playTurns [(0, 4); (0, 8)] detd100 0
+
+printfn "%A" result
+
+let newResult = playTurns [(0, 6); (0, 9)] detd100 0
+
+printfn "%A" newResult
 
 
-let getAllCoords (image: Coord seq): Coord seq = 
-    let maxx = Seq.map (fun (x, _) -> x) image |> Seq.max
-    let minx = Seq.map (fun (x, _) -> x) image |> Seq.min
-    let maxy = Seq.map (fun (_, y) -> y) image |> Seq.max
-    let miny = Seq.map (fun (_, y) -> y) image |> Seq.min
-    printfn "%A %A %A %A" maxx minx maxy miny
-    seq {minx - 20 .. maxx + 20} |> Seq.allPairs (seq {miny - 20 .. maxy + 20})
+let processPlayer ((score, pos): Player) (roll: int) : Player = 
+    let newpos = (roll + pos) % 10
+    let newScore = if newpos = 0 then 10 else newpos
+    (score+newScore, newpos)
 
-let shouldOutput inverted index = 
-    match Array.get algo index with
-    | '#' -> if inverted then true else false
-    | '.' -> if inverted then false else true
-    | _ -> raise (InvalidDataException())
+let dice: (int64 * int64) list = 
+    [(3,1);(4,3);(5,6);(6,7);(7,6);(8,3);(9,1)]
 
+let wrapTo10 (n: int64): int64 =
+    if n % int64(10) = 0 then 10 else n % int64(10)
 
-let getNextImage ((image, inverted): Image): Image =
-    getAllCoords image
-    |> Seq.filter (fun coord -> getIndex inverted image coord |> shouldOutput inverted)
-    |> Seq.fold (fun img coord -> Set.add coord img) Set.empty
-    |> (fun img -> (img, not(inverted)))
+let rec playTurn (p1: int64) (p2: int64) (s1:int64) (s2:int64): int64 * int64 =
+    if s2 >= 21 then 0, 1
+    else
+    dice
+    |> Seq.fold (fun (wins1, wins2) (move, n) -> 
+        let newpos = wrapTo10 (p1 + move)
+        let (w2, w1) = playTurn p2 newpos s2 (s1 + newpos)
+        (wins1 + (n*w1), wins2 + (n*w2))) (0, 0)
 
-let (twotimes, inverted) = image |> getNextImage |> getNextImage
-
-let rec repeatNTimes image n: Image = 
-    match n with
-    | 0 -> image
-    | x -> repeatNTimes (getNextImage image) (n - 1)
-
-printfn "%A %A" (Set.count twotimes) inverted
-
-let (repeat50, _) = repeatNTimes image 50
-
-printfn "%A" (Set.count repeat50)
+printfn "%A" (playTurn 6 9 0 0)
